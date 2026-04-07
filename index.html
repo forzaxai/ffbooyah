@@ -1594,21 +1594,8 @@ _fbAuth.onAuthStateChanged(async user => {
   // 2. BLOCK right-click context menu
   document.addEventListener('contextmenu', e => e.preventDefault(), true);
 
-  // 3. DevTools SIZE detection — lock app if devtools panel opens
-  let _devtoolsOpen = false;
-  const _devCheck = () => {
-    const w = window.outerWidth - window.innerWidth;
-    const h = window.outerHeight - window.innerHeight;
-    if (w > 160 || h > 160) {
-      if (!_devtoolsOpen) {
-        _devtoolsOpen = true;
-        _LOCKDOWN('DevTools detected');
-      }
-    } else {
-      _devtoolsOpen = false;
-    }
-  };
-  setInterval(_devCheck, 1000);
+  // 3. DevTools SIZE detection — DISABLED (causes false positives on mobile browsers)
+  // Mobile browsers have large chrome UI that triggers false bans
 
   // 4. CONSOLE neutralization — prevent JS console exploitation
   const _noop = () => {};
