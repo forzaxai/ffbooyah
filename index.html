@@ -1591,62 +1591,23 @@ _fbAuth.onAuthStateChanged(async user => {
     ) { e.preventDefault(); e.stopPropagation(); return false; }
   }, true);
 
-  // 2. BLOCK right-click context menu
+  // 2. Block right-click
   document.addEventListener('contextmenu', e => e.preventDefault(), true);
 
-  // 3. DevTools SIZE detection — DISABLED (causes false positives on mobile browsers)
-  // Mobile browsers have large chrome UI that triggers false bans
-
-  // 4. CONSOLE neutralization — prevent JS console exploitation
-  const _noop = () => {};
-  const _trap = () => { _LOCKDOWN('Console access detected'); };
-  try {
-    Object.defineProperty(console, '_commandLineAPI', { get: _trap });
-  } catch(e) {}
-  // Override console only in production (non-admin)
-  const _safeConsole = { log:_noop, warn:_noop, error:_noop, info:_noop, debug:_noop, table:_noop, dir:_noop };
-  // Will be applied after login check - admins keep console
-
-  // 5. DEBUGGER trap — pauses and breaks automated debugging
-  const _debugTrap = () => { setInterval(() => { debugger; }, 100); };
-  // Activated on suspicious behavior only
-
-  // 6. DOM MUTATION protection — detect unauthorized DOM injection
-  const _observer = new MutationObserver(mutations => {
-    for (const m of mutations) {
-      for (const node of m.addedNodes) {
-        if (node.tagName === 'SCRIPT' && !node.dataset.trusted) {
-          node.remove();
-          _LOCKDOWN('Unauthorized script injection detected');
-        }
-      }
-    }
-  });
-  _observer.observe(document.documentElement, { childList:true, subtree:true });
+  // 3-6. DevTools detection, console traps, MutationObserver — ALL REMOVED
+  // These cause false positives on mobile browsers, browser extensions,
+  // and Firebase SDK script loading. Only keep real account-based ban.
 
   // 7. IFRAME protection — kill if embedded in iframe
   if (window.self !== window.top) {
     document.body.innerHTML = '<div style="background:#000;color:#f00;padding:40px;font-family:monospace;font-size:18px">⛔ EMBEDDED ACCESS BLOCKED</div>';
-    throw new Error('Iframe blocked');
+    return;
   }
 
-  // 8. LOCKDOWN function — triggered on detected attack
+  // 8. LOCKDOWN — only called for real security events now
   window._LOCKDOWN = function(reason) {
-    console.clear();
-    document.getElementById('app-screen')?.classList.remove('active');
-    const lock = document.getElementById('ban-screen');
-    if (lock) {
-      lock.style.display = 'flex';
-      const title = lock.querySelector('div[style*="ACCOUNT BANNED"]');
-      if (title) title.textContent = '⚠️ ACCESS BLOCKED';
-      const msg = lock.querySelectorAll('div')[2];
-      if (msg) msg.textContent = 'Suspicious activity detected. This session has been terminated.';
-    } else {
-      document.body.innerHTML = `<div style="position:fixed;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#ef4444;font-family:monospace;text-align:center;padding:24px"><div style="font-size:48px;margin-bottom:16px">⛔</div><div style="font-size:20px;font-weight:900;margin-bottom:8px">ACCESS BLOCKED</div><div style="font-size:13px;color:#666">Suspicious activity detected.<br>This session has been terminated.</div></div>`;
-    }
-    // Stop all timers
-    for (let i = 1; i < 99999; i++) { clearInterval(i); clearTimeout(i); }
-    throw new Error(`Security: ${reason}`);
+    // No-op for minor events to prevent false bans
+    console.warn('[Security]', reason);
   };
 
 })();
@@ -1865,6 +1826,8 @@ let _busy       = false; // prevent double-submit
 // INIT
 // ================================================================
 window.addEventListener('DOMContentLoaded', async () => {
+  // Clear any stale session from old Firebase project (ff-booyah-eb33c)
+  // New project is ff-booyah-4b386 — old tokens are invalid
   const saved = _loadSession();
   if (saved && saved.refresh) {
     S = saved;
@@ -1874,6 +1837,9 @@ window.addEventListener('DOMContentLoaded', async () => {
       _showLoading('Loading your arena...');
       await _enterApp();
       return;
+    } else {
+      // Token refresh failed — old project session, clear it and show login
+      _clearSession();
     }
   }
   _hideLoading();
